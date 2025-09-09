@@ -1,6 +1,6 @@
 "use client";
 
-import { JSX, useState } from "react";
+import { JSX, useState, useEffect } from "react";
 import {
   LineChart,
   Line,
@@ -27,6 +27,7 @@ import {
   Hash,
   Tag,
   FileText,
+  AlertCircle,
 } from "lucide-react";
 
 interface Transaction {
@@ -44,80 +45,59 @@ interface ChartData {
   count: number;
 }
 
-// Mock data for demonstration
-const mockTransactions: Transaction[] = [
-  {
-    id: "1",
-    amount: 1500,
-    description: "Salary",
-    category: "salary",
-    type: "income",
-    date: new Date("2024-01-15"),
-  },
-  {
-    id: "2",
-    amount: 45.5,
-    description: "Grocery Store",
-    category: "food",
-    type: "expense",
-    date: new Date("2024-01-14"),
-  },
-  {
-    id: "3",
-    amount: 120,
-    description: "Gas Station",
-    category: "transportation",
-    type: "expense",
-    date: new Date("2024-01-13"),
-  },
-  {
-    id: "4",
-    amount: 25,
-    description: "Coffee Shop",
-    category: "food",
-    type: "expense",
-    date: new Date("2024-01-12"),
-  },
-  {
-    id: "5",
-    amount: 500,
-    description: "Freelance Work",
-    category: "freelance",
-    type: "income",
-    date: new Date("2024-01-11"),
-  },
-  {
-    id: "6",
-    amount: 80,
-    description: "Internet Bill",
-    category: "utilities",
-    type: "expense",
-    date: new Date("2024-01-10"),
-  },
-  {
-    id: "7",
-    amount: 35.75,
-    description: "Lunch",
-    category: "food",
-    type: "expense",
-    date: new Date("2024-01-09"),
-  },
-  {
-    id: "8",
-    amount: 200,
-    description: "Bonus",
-    category: "bonus",
-    type: "income",
-    date: new Date("2024-01-08"),
-  },
-];
+interface APIResponse {
+  success: boolean;
+  data: Transaction[];
+  total: number;
+  error?: string;
+}
 
 export default function Dashboard() {
-  const [transactions, setTransactions] =
-    useState<Transaction[]>(mockTransactions);
-  const [loading, setLoading] = useState(false);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [typeTab, setTypeTab] = useState<"income" | "expense">("expense");
   const [viewTab, setViewTab] = useState<"trends" | "transactions">("trends");
+
+  // Fetch transactions from API
+  const fetchTransactions = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const response = await fetch("/api/transaction");
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result: APIResponse = await response.json();
+
+      if (!result.success) {
+        throw new Error(result.error || "Failed to fetch transactions");
+      }
+
+      // Convert date strings back to Date objects
+      const transactionsWithDates = result.data.map((transaction) => ({
+        ...transaction,
+        date: new Date(transaction.date),
+      }));
+
+      setTransactions(transactionsWithDates);
+    } catch (err) {
+      console.error("Error fetching transactions:", err);
+      setError(
+        err instanceof Error ? err.message : "Failed to load transactions"
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch data on component mount
+  useEffect(() => {
+    fetchTransactions();
+  }, []);
 
   const filteredTransactions = transactions.filter((t) => t.type === typeTab);
 
@@ -175,7 +155,13 @@ export default function Dashboard() {
       entertainment: <Film {...iconProps} />,
       shopping: <ShoppingBag {...iconProps} />,
       health: <Heart {...iconProps} />,
+      healthcare: <Heart {...iconProps} />,
       education: <BookOpen {...iconProps} />,
+      housing: <CreditCard {...iconProps} />,
+      investments: <BarChart3 {...iconProps} />,
+      business: <DollarSign {...iconProps} />,
+      travel: <Film {...iconProps} />,
+      subscriptions: <Film {...iconProps} />,
       default: <CreditCard {...iconProps} />,
     };
     return icons[category] || icons.default;
@@ -200,6 +186,7 @@ export default function Dashboard() {
     }
   };
 
+  // Loading state
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
@@ -213,15 +200,44 @@ export default function Dashboard() {
     );
   }
 
+  // Error state
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
+        <div className="text-center max-w-md mx-auto p-6">
+          <div className="w-12 h-12 bg-red-100 rounded-2xl flex items-center justify-center mb-4 mx-auto">
+            <AlertCircle className="text-red-600" size={24} />
+          </div>
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">
+            Error Loading Data
+          </h2>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <button
+            onClick={fetchTransactions}
+            className="px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white font-medium rounded-xl hover:from-blue-600 hover:to-blue-700 transition-colors duration-200"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4 md:p-6">
       <div className="max-w-2xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent mb-2">
-            Budget Dashboard
-          </h1>
-          <p className="text-gray-600 text-lg">Track your financial journey</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent mb-2">
+                Budget Dashboard
+              </h1>
+              <p className="text-gray-600 text-lg">
+                Track your financial journey
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Type Tabs - Income/Expense */}
@@ -308,99 +324,111 @@ export default function Dashboard() {
               <h3 className="text-2xl font-bold text-gray-900 mb-6">
                 {typeTab === "income" ? "Income" : "Expense"} Trends
               </h3>
-              <div className="h-96 min-h-[384px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart
-                    data={chartData()}
-                    margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
-                  >
-                    <defs>
-                      <linearGradient
-                        id={`gradient-${typeTab}`}
-                        x1="0"
-                        y1="0"
-                        x2="0"
-                        y2="1"
-                      >
-                        <stop
-                          offset="5%"
-                          stopColor={
-                            typeTab === "income" ? "#10B981" : "#EF4444"
-                          }
-                          stopOpacity={0.3}
-                        />
-                        <stop
-                          offset="95%"
-                          stopColor={
-                            typeTab === "income" ? "#10B981" : "#EF4444"
-                          }
-                          stopOpacity={0}
-                        />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      stroke="#e2e8f0"
-                      strokeOpacity={0.5}
-                      vertical={false}
-                    />
-                    <XAxis
-                      dataKey="date"
-                      axisLine={false}
-                      tickLine={false}
-                      tick={{ fontSize: 12, fill: "#64748b" }}
-                      dy={10}
-                    />
-                    <YAxis
-                      tickFormatter={(value) => `${value}`}
-                      axisLine={false}
-                      tickLine={false}
-                      tick={{ fontSize: 12, fill: "#64748b" }}
-                      dx={-10}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "rgba(255, 255, 255, 0.95)",
-                        backdropFilter: "blur(10px)",
-                        border: "none",
-                        borderRadius: "16px",
-                        boxShadow:
-                          "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
-                      }}
-                      formatter={(value) => [
-                        formatCurrency(value as number),
-                        "Amount",
-                      ]}
-                      labelFormatter={(label) => `Date: ${label}`}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="amount"
-                      stroke={typeTab === "income" ? "#10B981" : "#EF4444"}
-                      strokeWidth={0}
-                      fill={`url(#gradient-${typeTab})`}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="amount"
-                      stroke={typeTab === "income" ? "#10B981" : "#EF4444"}
-                      strokeWidth={4}
-                      dot={{
-                        r: 6,
-                        fill: typeTab === "income" ? "#10B981" : "#EF4444",
-                        stroke: "#ffffff",
-                        strokeWidth: 3,
-                      }}
-                      activeDot={{
-                        r: 8,
-                        fill: typeTab === "income" ? "#10B981" : "#EF4444",
-                        stroke: "#ffffff",
-                        strokeWidth: 3,
-                      }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
+              {chartData().length > 0 ? (
+                <div className="h-96 min-h-[384px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart
+                      data={chartData()}
+                      margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
+                    >
+                      <defs>
+                        <linearGradient
+                          id={`gradient-${typeTab}`}
+                          x1="0"
+                          y1="0"
+                          x2="0"
+                          y2="1"
+                        >
+                          <stop
+                            offset="5%"
+                            stopColor={
+                              typeTab === "income" ? "#10B981" : "#EF4444"
+                            }
+                            stopOpacity={0.3}
+                          />
+                          <stop
+                            offset="95%"
+                            stopColor={
+                              typeTab === "income" ? "#10B981" : "#EF4444"
+                            }
+                            stopOpacity={0}
+                          />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        stroke="#e2e8f0"
+                        strokeOpacity={0.5}
+                        vertical={false}
+                      />
+                      <XAxis
+                        dataKey="date"
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fontSize: 12, fill: "#64748b" }}
+                        dy={10}
+                      />
+                      <YAxis
+                        tickFormatter={(value) => `${value}`}
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fontSize: 12, fill: "#64748b" }}
+                        dx={-10}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: "rgba(255, 255, 255, 0.95)",
+                          backdropFilter: "blur(10px)",
+                          border: "none",
+                          borderRadius: "16px",
+                          boxShadow:
+                            "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
+                        }}
+                        formatter={(value) => [
+                          formatCurrency(value as number),
+                          "Amount",
+                        ]}
+                        labelFormatter={(label) => `Date: ${label}`}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="amount"
+                        stroke={typeTab === "income" ? "#10B981" : "#EF4444"}
+                        strokeWidth={0}
+                        fill={`url(#gradient-${typeTab})`}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="amount"
+                        stroke={typeTab === "income" ? "#10B981" : "#EF4444"}
+                        strokeWidth={4}
+                        dot={{
+                          r: 6,
+                          fill: typeTab === "income" ? "#10B981" : "#EF4444",
+                          stroke: "#ffffff",
+                          strokeWidth: 3,
+                        }}
+                        activeDot={{
+                          r: 8,
+                          fill: typeTab === "income" ? "#10B981" : "#EF4444",
+                          stroke: "#ffffff",
+                          strokeWidth: 3,
+                        }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <BarChart3 className="text-gray-400" size={32} />
+                  </div>
+                  <p className="text-gray-500 text-lg">No data to display</p>
+                  <p className="text-gray-400 text-sm">
+                    Add some {typeTab}s to see trends
+                  </p>
+                </div>
+              )}
             </div>
           ) : (
             <div>
